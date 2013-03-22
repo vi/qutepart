@@ -125,9 +125,10 @@ class RuleTryMatchResult:
 class AbstractRuleParams:
     """Parameters, passed to the AbstractRule constructor
     """
-    def __init__(self, parentContext, format, attribute, context, lookAhead, firstNonSpace, dynamic, column):
+    def __init__(self, parentContext, format, textType, attribute, context, lookAhead, firstNonSpace, dynamic, column):
         self.parentContext = parentContext
         self.format = format
+        self.textType = textType
         self.attribute = attribute
         self.context = context
         self.lookAhead = lookAhead
@@ -153,6 +154,7 @@ class AbstractRule:
     def __init__(self, params):
         self.parentContext = params.parentContext
         self.format = params.format
+        self.textType = params.textType
         self.attribute = params.attribute
         self.context = params.context
         self.lookAhead = params.lookAhead
@@ -776,19 +778,21 @@ class Context:
         fallthroughContext
         dynamic
         rules
+        textType     ' ' : code, 'c' : comment
     """
     def __init__(self, parser, name):
         # Will be initialized later, after all context has been created
         self.parser = parser
         self.name = name
     
-    def setValues(self, attribute, format, lineEndContext, lineBeginContext, fallthroughContext, dynamic):
+    def setValues(self, attribute, format, lineEndContext, lineBeginContext, fallthroughContext, dynamic, textType):
         self.attribute = attribute
         self.format = format
         self.lineEndContext = lineEndContext
         self.lineBeginContext = lineBeginContext
         self.fallthroughContext = fallthroughContext
         self.dynamic = dynamic
+        self.textType = textType
     
     def setRules(self, rules):
         self.rules = rules
@@ -817,6 +821,7 @@ class Context:
         startColumnIndex = currentColumnIndex
         countOfNotMatchedSymbols = 0
         highlightedSegments = []
+        textTypeMap = []
         ruleTryMatchResult = None
         while currentColumnIndex < len(text):
             textToMatchObject = TextToMatchObject(currentColumnIndex,
@@ -830,9 +835,11 @@ class Context:
                                   self.rules.index(rule), currentColumnIndex)
                     if countOfNotMatchedSymbols > 0:
                         highlightedSegments.append((countOfNotMatchedSymbols, self.format))
+                        textTypeMap += [self.textType for i in range(countOfNotMatchedSymbols)]
                         countOfNotMatchedSymbols = 0
                     
                     highlightedSegments.append((ruleTryMatchResult.length, ruleTryMatchResult.rule.format))
+                    textTypeMap += [ruleTryMatchResult.rule.textType for i in range(ruleTryMatchResult.length)]
 
                     currentColumnIndex += ruleTryMatchResult.length
                     if ruleTryMatchResult.rule.context is not None:
@@ -841,7 +848,7 @@ class Context:
                         if newContextStack != contextStack:
                             lineContinue = isinstance(ruleTryMatchResult.rule, LineContinue)
 
-                            return currentColumnIndex - startColumnIndex, newContextStack, highlightedSegments, lineContinue
+                            return currentColumnIndex - startColumnIndex, newContextStack, highlightedSegments, textTypeMap, lineContinue
                     
                     break  # for loop
             else:  # no matched rules
@@ -850,18 +857,20 @@ class Context:
                     if newContextStack != contextStack:
                         if countOfNotMatchedSymbols > 0:
                             highlightedSegments.append((countOfNotMatchedSymbols, self.format))
-                        return (currentColumnIndex - startColumnIndex, newContextStack, highlightedSegments, False)
+                            textTypeMap += [self.textType for i in range(countOfNotMatchedSymbols)]
+                        return (currentColumnIndex - startColumnIndex, newContextStack, highlightedSegments, textTypeMap, False)
 
                 currentColumnIndex += 1
                 countOfNotMatchedSymbols += 1
         
         if countOfNotMatchedSymbols > 0:
             highlightedSegments.append((countOfNotMatchedSymbols, self.format))
+            textTypeMap += [self.textType for i in range(countOfNotMatchedSymbols)]
 
         lineContinue = ruleTryMatchResult is not None and \
                        isinstance(ruleTryMatchResult.rule, LineContinue)
 
-        return currentColumnIndex - startColumnIndex, contextStack, highlightedSegments, lineContinue
+        return currentColumnIndex - startColumnIndex, contextStack, highlightedSegments, textTypeMap, lineContinue
 
 
 class Parser:
@@ -912,25 +921,32 @@ class Parser:
         
         return res
 
-    def highlightBlock(self, text, prevLineData):
+    def highlightBlock(self, text, prevContextStack):
         """Parse block and return ParseBlockFullResult
+        
+        return (lineData, highlightedSegments)
+          where lineData is (contextStack, textTypeMap)
+            where textTypeMap is a string of textType characters
         """
-        if prevLineData is not None:
-            contextStack = prevLineData
+        if prevContextStack is not None:
+            contextStack = prevContextStack
         else:
             contextStack = self._defaultContextStack
         
         highlightedSegments = []
         lineContinue = False
         currentColumnIndex = 0
+        textTypeMap = []
         while currentColumnIndex < len(text):
             _logger.debug('In context %s', contextStack.currentContext().name)
 
-            length, newContextStack, segments, lineContinue = \
+            textType = contextStack.currentContext().textType
+            length, newContextStack, segments, textTypeMapPart, lineContinue = \
                         contextStack.currentContext().parseBlock(contextStack, currentColumnIndex, text)
-            
+
             highlightedSegments += segments
             contextStack = newContextStack
+            textTypeMap += textTypeMapPart
             currentColumnIndex += length
 
         if not lineContinue:
@@ -944,7 +960,8 @@ class Parser:
             if contextStack.currentContext().lineBeginContext is not None:
                 contextStack = contextStack.currentContext().lineBeginContext.getNextContextStack(contextStack)
         
-        return contextStack, highlightedSegments
+        lineData = (contextStack, textTypeMap)
+        return lineData, highlightedSegments
 
-    def parseBlock(self, text, prevLineData):
-        return self.highlightBlock(text, prevLineData)[0]
+    def parseBlock(self, text, prevContextStack):
+        return self.highlightBlock(text, prevContextStack)[0]

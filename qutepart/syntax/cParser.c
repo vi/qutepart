@@ -200,6 +200,7 @@ typedef struct {
     /* Type-specific fields go here. */
     PyObject* parentContext;
     PyObject* format;
+    char textType;
     PyObject* attribute;
     ContextSwitcher* context;
     bool lookAhead;
@@ -274,6 +275,8 @@ typedef struct {
     AbstractRule** rulesC;
     int rulesSize;
     bool dynamic;
+    char textType;
+    PyObject* textTypePython;
 } Context;
 
 typedef struct {
@@ -445,14 +448,15 @@ AbstractRuleParams_init(AbstractRuleParams *self, PyObject *args, PyObject *kwds
 {
     PyObject* parentContext = NULL;
     PyObject* format = NULL;
+    PyObject* textType = NULL;
     PyObject* attribute = NULL;
     PyObject* context = NULL;
     PyObject* lookAhead = NULL;
     PyObject* firstNonSpace = NULL;
     PyObject* dynamic = NULL;
 
-    if (! PyArg_ParseTuple(args, "|OOOOOOOi",
-                           &parentContext, &format, &attribute,
+    if (! PyArg_ParseTuple(args, "|OOOOOOOOi",
+                           &parentContext, &format, &textType, &attribute,
                            &context, &lookAhead, &firstNonSpace, &dynamic,
                            &self->column))
         return -1;
@@ -465,6 +469,7 @@ AbstractRuleParams_init(AbstractRuleParams *self, PyObject *args, PyObject *kwds
     
     ASSIGN_PYOBJECT_FIELD(parentContext);
     ASSIGN_PYOBJECT_FIELD(format);
+    self->textType = PyString_AsString(textType)[0];
     ASSIGN_PYOBJECT_FIELD(attribute);
     ASSIGN_FIELD(ContextSwitcher, context);
     
@@ -2543,6 +2548,7 @@ static PyMemberDef Context_members[] = {
     {"parser", T_OBJECT_EX, offsetof(Context, parser), READONLY, "Parser instance"},
     {"format", T_OBJECT_EX, offsetof(Context, format), READONLY, "Context format"},
     {"rules", T_OBJECT_EX, offsetof(Context, rulesPython), READONLY, "List of rules"},
+    {"textType", T_OBJECT_EX, offsetof(Context, textTypePython), READONLY, "Text type"},
     {NULL}
 };
 
@@ -2558,6 +2564,7 @@ Context_dealloc(Context* self)
     Py_XDECREF(self->lineBeginContext);
     Py_XDECREF(self->fallthroughContext);
     Py_XDECREF(self->rulesPython);
+    Py_XDECREF(self->textTypePython);
     
     PyMem_Free(self->rulesC);
 
@@ -2592,11 +2599,12 @@ Context_setValues(Context *self, PyObject *args)
     PyObject* lineBeginContext = NULL;
     PyObject* fallthroughContext = NULL;
     PyObject* dynamic = NULL;
+    PyObject* textTypePython = NULL;
 
-    if (! PyArg_ParseTuple(args, "|OOOOOO",
+    if (! PyArg_ParseTuple(args, "|OOOOOOO",
                            &attribute, &format, &lineEndContext,
                            &lineBeginContext, &fallthroughContext,
-                           &dynamic))
+                           &dynamic, &textTypePython))
         Py_RETURN_NONE;
 
     if (Py_None != lineEndContext)
@@ -2613,6 +2621,8 @@ Context_setValues(Context *self, PyObject *args)
     ASSIGN_PYOBJECT_FIELD(lineBeginContext);
     ASSIGN_FIELD(ContextSwitcher, fallthroughContext);
     ASSIGN_BOOL_FIELD(dynamic);
+    ASSIGN_PYOBJECT_FIELD(textTypePython);
+    self->textType = PyString_AsString(textTypePython)[0];
 
     Py_RETURN_NONE;
 }
@@ -2653,11 +2663,20 @@ Context_appendSegment(PyObject* segmentList, int count, PyObject* format)
     }
 }
 
+static void
+Context_appendTextType(int fromIndex, int count, char* textTypeMapData, char textType)
+{
+    int i;
+    for (i = fromIndex; i < fromIndex + count; i++)
+        textTypeMapData[i] = textType;
+}
+
 static int
 Context_parseBlock(Context* self,
                    int currentColumnIndex,
                    PyObject* unicodeText,
                    PyObject* segmentList,
+                   char* textTypeMapData,
                    ContextStack** pContextStack,
                    bool* pLineContinue)
 {
@@ -2700,11 +2719,14 @@ Context_parseBlock(Context* self,
             if (countOfNotMatchedSymbols > 0)
             {
                 Context_appendSegment(segmentList, countOfNotMatchedSymbols, self->format);
+                Context_appendTextType(currentColumnIndex - countOfNotMatchedSymbols, countOfNotMatchedSymbols,
+                                       textTypeMapData, self->textType);
                 countOfNotMatchedSymbols = 0;
             }
             
             Context_appendSegment(segmentList, result.length, result.rule->abstractRuleParams->format);
-            
+            Context_appendTextType(currentColumnIndex, result.length,
+                                   textTypeMapData, result.rule->abstractRuleParams->textType);
             currentColumnIndex += result.length;
             
             if (Py_None != (PyObject*)result.rule->abstractRuleParams->context)
@@ -2747,6 +2769,9 @@ Context_parseBlock(Context* self,
     if (countOfNotMatchedSymbols > 0)
     {
         Context_appendSegment(segmentList, countOfNotMatchedSymbols, self->format);
+        Context_appendTextType(currentColumnIndex - countOfNotMatchedSymbols, countOfNotMatchedSymbols,
+                               textTypeMapData, self->textType);
+
         countOfNotMatchedSymbols = 0;
     }
     
@@ -2888,6 +2913,10 @@ Parser_parseBlock_internal(Parser *self, PyObject *args, bool returnSegments)
     bool lineContinue = false;
     int currentColumnIndex = 0;
     int textLen = PyUnicode_GET_SIZE(unicodeText);
+    PyObject* textTypeMap = PyString_FromStringAndSize("", textLen);
+    char* textTypeMapData = PyString_AS_STRING(textTypeMap);
+    textTypeMapData[textLen + 1] = 0;
+    
     while (currentColumnIndex < textLen)
     {
         if (self->debugOutputEnabled)
@@ -2901,6 +2930,7 @@ Parser_parseBlock_internal(Parser *self, PyObject *args, bool returnSegments)
                                          currentColumnIndex,
                                          unicodeText,
                                          segmentList,
+                                         textTypeMapData,
                                         &contextStack,
                                         &lineContinue);
         currentColumnIndex += length;
@@ -2939,30 +2969,33 @@ Parser_parseBlock_internal(Parser *self, PyObject *args, bool returnSegments)
             currentContext = ContextStack_currentContext(contextStack);
         }
     }
-    
+
     if (PyErr_Occurred())
     {
         Py_DECREF(contextStack);
+        Py_DECREF(textTypeMap);
         return NULL;
     }
     else
     {
-        PyObject* retData = NULL;
+        PyObject* retStack = NULL;
         if ( ! Parser_contextStackEqualToDefault(self->defaultContext, contextStack))
         {
-            retData = (PyObject*)contextStack;
+            retStack = (PyObject*)contextStack;
         }
         else
         {
-            retData = Py_None;
-            Py_INCREF(retData);
+            retStack = Py_None;
+            Py_INCREF(retStack);
             Py_DECREF(contextStack);
         }
         
+        PyObject* retContextData = Py_BuildValue("OO", retStack, textTypeMap);
+        
         if (Py_None != segmentList)
-            return Py_BuildValue("OO", retData, segmentList);
+            return Py_BuildValue("OO", retContextData, segmentList);
         else
-            return retData;
+            return retContextData;
     }
 }
 

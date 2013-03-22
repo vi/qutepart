@@ -175,13 +175,16 @@ def _loadAbstractRuleParams(parentContext, xmlElement, attributeToFormatMap, for
         attribute = attribute.lower()  # not case sensitive
         try:
             format = attributeToFormatMap[attribute]
+            textType = format.textType if format is not None else ' '
             if formatConverterFunction is not None and format is not None:
                 format = formatConverterFunction(format)
         except KeyError:
             _logger.error('Unknown rule attribute %s', attribute)
             format = parentContext.format
+            textType = parentContext.textType
     else:
         format = parentContext.format
+        textType = parentContext.textType
     
     # context
     contextText = xmlElement.attrib.get("context", '#stay')
@@ -200,7 +203,7 @@ def _loadAbstractRuleParams(parentContext, xmlElement, attributeToFormatMap, for
     else:
         column = -1
     
-    return _parserModule.AbstractRuleParams(parentContext, format, attribute, context, lookAhead, firstNonSpace, dynamic, column)
+    return _parserModule.AbstractRuleParams(parentContext, format, textType, attribute, context, lookAhead, firstNonSpace, dynamic, column)
 
 def _loadDetectChar(parentContext, xmlElement, attributeToFormatMap, formatConverterFunction):
     abstractRuleParams = _loadAbstractRuleParams(parentContext, xmlElement, attributeToFormatMap, formatConverterFunction)
@@ -370,6 +373,7 @@ def _loadContexts(highlightingElement, parser, attributeToFormatMap, formatConve
     for xmlElement, context in zip(xmlElementList, contextList):
         _loadContext(context, xmlElement, attributeToFormatMap, formatConverterFunction)
 
+    
 def _loadContext(context, xmlElement, attributeToFormatMap, formatConverterFunction):
     """Construct context from XML element
     Contexts are at first constructed, and only then loaded, because when loading context,
@@ -385,6 +389,7 @@ def _loadContext(context, xmlElement, attributeToFormatMap, formatConverterFunct
     else:
         format = None
     
+    textType = format.textType if format is not None else ' '
     if formatConverterFunction is not None and format is not None:
         format = formatConverterFunction(format)
     
@@ -401,7 +406,7 @@ def _loadContext(context, xmlElement, attributeToFormatMap, formatConverterFunct
     
     dynamic = _parseBoolAttribute(xmlElement.attrib.get('dynamic', 'false'))
     
-    context.setValues(attribute, format, lineEndContext, lineBeginContext, fallthroughContext, dynamic)
+    context.setValues(attribute, format, lineEndContext, lineBeginContext, fallthroughContext, dynamic, textType)
     
     # load rules
     rules = _loadChildRules(context, xmlElement, attributeToFormatMap, formatConverterFunction)
@@ -410,6 +415,12 @@ def _loadContext(context, xmlElement, attributeToFormatMap, formatConverterFunct
 ################################################################################
 ##                               Syntax
 ################################################################################
+def _textTypeForDefStyleName(defStyleName):
+    """ ' ' for code
+        'c' for comments
+    """
+    isComment = defStyleName in ('dsComment', 'dsString', 'dsRegionMarker', 'dsChar', 'dsOthers')
+    return 'c' if isComment else ' '
 
 def _loadAttributeToFormatMap(highlightingElement):
     defaultTheme = ColorTheme(TextFormat)
@@ -425,6 +436,8 @@ def _loadAttributeToFormatMap(highlightingElement):
             
         format = copy.copy(defaultTheme.format[defaultStyleName])
 
+        format.textType = _textTypeForDefStyleName(defaultStyleName)
+        
         caseInsensitiveAttributes = {}
         for key, value in item.attrib.iteritems():
             caseInsensitiveAttributes[key.lower()] = value.lower()

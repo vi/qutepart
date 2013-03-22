@@ -19,6 +19,20 @@ class SyntaxHighlighter(QObject):
     
     _MAX_PARSING_TIME_SEC = 0.02
 
+    def isCode(self, block, column):
+        """Check if character at column is code
+        """
+        dataObject = block.userData()
+        data = dataObject.data if dataObject is not None else None
+        return self._syntax.isCode(data, column)
+
+    def isComment(self, block, column):
+        """Check if character at column is code
+        """
+        dataObject = block.userData()
+        data = dataObject.data if dataObject is not None else None
+        return self._syntax.isComment(data, column)
+
     @staticmethod
     def formatConverterFunction(format):
         qtFormat = QTextCharFormat()
@@ -111,7 +125,8 @@ class SyntaxHighlighter(QObject):
                 self._continueTimer.start()
                 return
             
-            lineData, highlightedSegments = self._syntax.highlightBlock(block.text(), lineData)
+            contextStack = lineData[0] if lineData is not None else None
+            lineData, highlightedSegments = self._syntax.highlightBlock(block.text(), contextStack)
             if lineData is not None:
                 block.setUserData(_TextBlockUserData(lineData))
             else:
@@ -129,7 +144,8 @@ class SyntaxHighlighter(QObject):
                 self._continueTimer.start()
                 return
 
-            lineData, highlightedSegments = self._syntax.highlightBlock(block.text(), lineData)
+            contextStack = lineData[0] if lineData is not None else None
+            lineData, highlightedSegments = self._syntax.highlightBlock(block.text(), contextStack)
             if lineData is not None:
                 block.setUserData(_TextBlockUserData(lineData))
             else:
