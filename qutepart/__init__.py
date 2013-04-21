@@ -325,6 +325,9 @@ class Qutepart(QPlainTextEdit):
         # toPlainText() takes a lot of time on long texts, therefore it is cached
         self._cachedText = None
         
+        # if bracket is highlighted, this field contains (startBlock, endBlock, column)
+        self._highlightedBracket = None
+        
         self._eol = self._DEFAULT_EOL
         self._indentWidth = self._DEFAULT_INDENT_WIDTH
         self._indentUseTabs = self._DEFAULT_INDENT_USE_TABS
@@ -860,11 +863,48 @@ class Qutepart(QPlainTextEdit):
             else:
                 super(Qutepart, self).keyPressEvent(event)
     
+    def _redrawBlocks(self, startBlock, endBlock):
+        """Redraw blocks"""
+        startBlockGeometry = self.blockBoundingGeometry(startBlock).translated(self.contentOffset())
+        endBlockGeometry = self.blockBoundingGeometry(endBlock).translated(self.contentOffset())
+        self.update(startBlockGeometry.intersected(endBlockGeometry).toRect())
+        
+    def _setHighlightedIndentMarkers(self, highlightedBracket):
+        """Set indent markers, which shall be highlighted, because braces matched
+        """
+        # if bracket is highlighted, this information is used for highlight indent markers
+        """
+        if self._highlightedBracket != highlightedBracket:
+            if self._highlightedBracket is not None:
+                self._redrawBlocks(self._highlightedBracket[0], self._highlightedBracket[1])
+            
+            self._highlightedBracket = highlightedBracket
+            
+            if self._highlightedBracket is not None:
+                self._redrawBlocks(self._highlightedBracket[0], self._highlightedBracket[1])
+        """
+        self._highlightedBracket = highlightedBracket
+        self.update()
+        print '~~~ update requested'
+    
+    def _shallHighlightIndentMarker(self, block, column):
+        """Check if this indent marker shall be highlighted
+        Qutepart highlightes markers between highlighted braces
+        """
+        if self._highlightedBracket is not None:
+            startBlock, endBlock, minColumn = self._highlightedBracket
+            ret = startBlock.blockNumber() <= block.blockNumber() <= endBlock.blockNumber() and \
+                   column == minColumn
+            print 'will return', ret, startBlock.blockNumber(), block.blockNumber(), endBlock.blockNumber(), column, minColumn
+            return ret
+        else:
+            print 'will return false none'
+            return False        
+    
     def _drawIndentMarkers(self, paintEventRect):
         """Draw indentation markers
         """
         painter = QPainter(self.viewport())
-        painter.setPen(Qt.blue)
         
         indentWidthChars = len(self._indentText())
         indentWidthPixels = self.fontMetrics().width(' ' * self._indentWidth)
@@ -881,14 +921,37 @@ class Qutepart(QPlainTextEdit):
             
             if block.isVisible() and blockGeometry.toRect().intersects(paintEventRect):
                 text = block.text()
+                originalTextLength = len(text)
                 x = blockGeometry.left() + indentWidthPixels + leftMargin
                 while text.startswith(self._indentText()) and \
                       len(text) > indentWidthChars and \
                       text[indentWidthChars].isspace():
+                    column = len(text) - originalTextLength + indentWidthChars
+                    ret = self._shallHighlightIndentMarker(block, column)
+                    if ret:
+                        print '~~~~ draw with red', paintEventRect, x, \
+                                     blockGeometry.top(), \
+                                     x, \
+                                     blockGeometry.top() + cursorHeight
+                        painter.setPen(Qt.red)
+                    else:
+                        print '~~~~ draw with blue', paintEventRect, x, \
+                                     blockGeometry.top(), \
+                                     x, \
+                                     blockGeometry.top() + cursorHeight
+                        painter.setPen(Qt.blue)
+
                     painter.drawLine(x,
                                      blockGeometry.top(),
                                      x,
                                      blockGeometry.top() + cursorHeight)
+                    """
+                    painter.drawLine(2,
+                                     2,
+                                     2,
+                                     19)
+                    """
+                    painter.fillRect(2, 2, 17, 17, painter.pen().color())
                     text = text[indentWidthChars:]
                     x = x + indentWidthPixels
     
@@ -922,8 +985,9 @@ class Qutepart(QPlainTextEdit):
         # TODO use positionInBlock when Qt 4.6 is not supported
         cursorColumnIndex = self.textCursor().positionInBlock()
         
-        bracketSelections = self._bracketHighlighter.extraSelections(self.textCursor().block(),
+        bracketSelections, tmp = self._bracketHighlighter.extraSelectionsAndHighlightedBrackets(self.textCursor().block(),
                                                                      cursorColumnIndex)
+        self._setHighlightedIndentMarkers(tmp)
         allSelections = [currentLineSelection] + bracketSelections + self._userExtraSelections
         QPlainTextEdit.setExtraSelections(self, allSelections)
 
