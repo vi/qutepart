@@ -19,6 +19,14 @@ package_data={'qutepart' : ['icons/*.png'],
 pcre_include_dirs = [os.environ['PCRE_INCLUDE_DIR']] if 'PCRE_INCLUDE_DIR' in os.environ else []
 pcre_library_dirs = [os.environ['PCRE_LIBRARY_DIR']] if 'PCRE_LIBRARY_DIR' in os.environ else []
 
+if sys.platform == 'Darwin':
+    if not pcre_include_dirs and \
+       not pcre_library_dirs:
+        # default locations for mac ports
+        pcre_include_dirs.append('/opt/local/include')
+        pcre_library_dirs.append('/opt/local/lib')
+
+
 extension = Extension('qutepart.syntax.cParser',
                       sources = ['qutepart/syntax/cParser.c'],
                       libraries = ['pcre'],
