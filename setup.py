@@ -19,7 +19,7 @@ package_data={'qutepart' : ['icons/*.png'],
 pcre_include_dirs = [os.environ['PCRE_INCLUDE_DIR']] if 'PCRE_INCLUDE_DIR' in os.environ else []
 pcre_library_dirs = [os.environ['PCRE_LIBRARY_DIR']] if 'PCRE_LIBRARY_DIR' in os.environ else []
 
-if sys.platform == 'Darwin':
+if sys.platform == 'darwin':
     if not pcre_include_dirs and \
        not pcre_library_dirs:
         # default locations for mac ports
