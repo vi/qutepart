@@ -85,7 +85,8 @@ class SyntaxHighlighter(QObject):
 
     _globalTimer = GlobalTimer()
 
-    def __init__(self, syntax, object):
+    def __init__(self, syntax, object, textEdit):
+        self._textEdit = textEdit
         if isinstance(object, QTextDocument):
             document = object
         elif isinstance(object, QTextEdit):
@@ -295,3 +296,5 @@ class SyntaxHighlighter(QObject):
         if block.layout().additionalFormats() != ranges:
             block.layout().setAdditionalFormats(ranges)
             self._document.markContentsDirty(block.position(), block.length())
+
+        self._textEdit.updateGeometry()
