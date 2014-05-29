@@ -102,12 +102,22 @@ class SyntaxHighlighter(QObject):
         self._pendingBlockNumber = None
         self._pendingAtLeastUntilBlockNumber = None
 
-        document.contentsChange.connect(self._onContentsChange)
-
-        charsAdded = document.lastBlock().position() + document.lastBlock().length()
-        self._onContentsChange(0, 0, charsAdded, zeroTimeout=self._wasChangedJustBefore())
-
         document.destroyed.connect(self._onDocumentDestroyed)
+        self._documentHasBeenDestroyed = False
+
+        QTimer.singleShot(0, self._finalizeInit)
+
+    def _finalizeInit(self):
+        """If highlighting is activated before Qutepart.__init__ is finished,
+        document sometimes has incorrect size and cursor is not visible.
+
+        See https://github.com/hlamer/enki/issues/191
+        """
+        if self._documentHasBeenDestroyed:
+            return
+        self._document.contentsChange.connect(self._onContentsChange)
+        charsAdded = self._document.lastBlock().position() + self._document.lastBlock().length()
+        self._onContentsChange(0, 0, charsAdded, zeroTimeout=self._wasChangedJustBefore())
 
     def del_(self):
         self._document.contentsChange.disconnect(self._onContentsChange)
@@ -123,6 +133,7 @@ class SyntaxHighlighter(QObject):
         """After C++ object was deleted, timer callback might crash the application
         Unschedule it
         """
+        self._documentHasBeenDestroyed = True
         self._globalTimer.unScheduleCallback(self._onContinueHighlighting)
 
     def syntax(self):
