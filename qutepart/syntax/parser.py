@@ -824,7 +824,7 @@ class Context:
         res += '\t\t%s: %s\n' % ('dynamic', self.dynamic)
 
         for rule in self.rules:
-            res += unicode(rule)
+            res += str(rule)
         return res
 
     def parseBlock(self, contextStack, currentColumnIndex, text):
@@ -922,8 +922,8 @@ class Parser:
         """Serialize.
         For debug logs
         """
-        res = u'Parser\n'
-        for name, value in vars(self).iteritems():
+        res = 'Parser\n'
+        for name, value in vars(self).items():
             if not name.startswith('_') and \
                not name in ('defaultContext', 'deliminatorSet', 'contexts', 'lists', 'syntax') and \
                not value is None:
@@ -931,12 +931,12 @@ class Parser:
 
         res += '\tDefault context: %s\n' % self.defaultContext.name
 
-        for listName, listValue in self.lists.iteritems():
+        for listName, listValue in self.lists.items():
             res += '\tList %s: %s\n' % (listName, listValue)
 
 
         for context in self.contexts.values():
-            res += unicode(context)
+            res += str(context)
 
         return res
 
