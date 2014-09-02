@@ -3,13 +3,13 @@ import sys
 import unittest
 import time
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath('.'))
+
 from qutepart.qt import Qt, QTimer
 from qutepart.qt import QApplication
 from qutepart.qt import QTest
 
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.insert(0, os.path.abspath('.'))
 
 # Create a single, persistent QApplication for use in all tests.
 papp = QApplication(sys.argv)
