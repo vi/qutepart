@@ -9,8 +9,6 @@ import sip
 sip.setapi('QString', 2)
 sip.setapi('QVariant', 2)
 
-from PyQt4.QtGui import QApplication, QMainWindow
-
 
 def _parseCommandLine():
     parser = argparse.ArgumentParser(description='Qutepart test application')
@@ -40,6 +38,7 @@ def main():
     _fixSysPath(ns.binary)
 
     import qutepart  # after correct sys.path has been set
+    from qutepart.qt import QApplication, QMainWindow
 
     with open(ns.file) as file:
         text = unicode(file.read(), 'utf8')

@@ -2,26 +2,27 @@ from __future__ import unicode_literals
 import sys
 import os
 
-PYSIDE = 0
-PYQT4 = 1
-PYQT5 = 2
+PYSIDE = 'pyside'
+PYQT4 = 'pyqt4'
+PYQT5 = 'pyqt5'
 
 USE_QT_PY = None
 
 QT_API_ENV = os.environ.get('QT_API')
-ETS = dict(pyqt=PYQT4, pyqt5=PYQT5, pyside=PYSIDE)
+ETS = dict(pyqt4=PYQT4, pyqt5=PYQT5, pyside=PYSIDE)
 
 # Check environment variable
 if QT_API_ENV and QT_API_ENV in ETS:
     USE_QT_PY = ETS[QT_API_ENV]
-
-# Check if one already importer
+# Check if one already imported
 elif 'PyQt4' in sys.modules:
     USE_QT_PY = PYQT4
 elif 'PyQt5' in sys.modules:
     USE_QT_PY = PYQT5
+elif 'PySide' in sys.modules:
+    USE_QT_PY = PYSIDE
+# Try importing in turn
 else:
-    # Try importing in turn
     try:
         import PyQt5
         USE_QT_PY = PYQT5
@@ -36,6 +37,7 @@ else:
             except:
                 pass
 
+
 # Import PyQt classes accessible in elsewhere through from qt import *
 if USE_QT_PY == PYQT5:
     from PyQt5.QtGui import *
@@ -46,7 +48,7 @@ if USE_QT_PY == PYQT5:
     from PyQt5.QtWebKitWidgets import *
     from PyQt5.QtPrintSupport import *
     from PyQt5.QtTest import *
-    
+
     # qWaitForWindowShown is not provided in Qt5; see bug: https://bugreports.qt-project.org/browse/QTBUG-23185
     QTest.qWaitForWindowShown = QTest.qWaitForWindowActive
 
