@@ -4,7 +4,7 @@ htmldelegate --- QStyledItemDelegate delegate. Draws HTML
 """
 
 from qutepart.qt import QAbstractTextDocumentLayout, \
-                        QStyledItemDelegate, QStyle, QStyleOptionViewItem, \
+                        QStyledItemDelegate, QStyle, QStyleOptionViewItemV4, \
                         QPalette
 from qutepart.qt import QApplication, QTextDocument
 from qutepart.qt import QSize
@@ -38,7 +38,7 @@ class HTMLDelegate(QStyledItemDelegate):
         """
         option.state &= ~QStyle.State_HasFocus  # never draw focus rect
 
-        options = QStyleOptionViewItem(option)
+        options = QStyleOptionViewItemV4(option)
         self.initStyleOption(options,index)
 
         style = QApplication.style() if options.widget is None else options.widget.style()
@@ -59,7 +59,7 @@ class HTMLDelegate(QStyledItemDelegate):
         if option.state & QStyle.State_Selected:
             ctx.palette.setColor(QPalette.Text, option.palette.color(QPalette.Active, QPalette.HighlightedText))
 
-        textRect = style.subElementRect(QStyle.SE_ItemViewItemText, options)
+        textRect = style.subElementRect(QStyle.SE_ItemViewItemText, options, None)
         painter.save()
         painter.translate(textRect.topLeft())
         """Original example contained line
@@ -73,7 +73,7 @@ class HTMLDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         """QStyledItemDelegate.sizeHint implementation
         """
-        options = QStyleOptionViewItem(option)
+        options = QStyleOptionViewItemV4(option)
         self.initStyleOption(options,index)
 
         doc = QTextDocument()
