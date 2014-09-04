@@ -70,7 +70,10 @@ class GlobalTimer:
             self._scheduledCallbacks.remove(callback)
 
         if not self._scheduledCallbacks:
-            self._timer.stop()
+            try:
+                self._timer.stop()
+            except RuntimeError:  # happens during application shutdown on PySide
+                pass
 
     def isCallbackScheduled(self, callback):
         return callback in self._scheduledCallbacks
