@@ -34,6 +34,7 @@ class Print(_BaseTest):
         return os.path.isfile('print.pdf')
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Works only on Linux")
+    @unittest.expectedFailure
     def test_1(self):
         self._rm()
         self.assertFalse(self._exists())
