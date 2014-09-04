@@ -60,6 +60,8 @@ elif USE_QT_PY == PYSIDE:
 
     pyqtSignal = Signal
 
+    QStyleOptionViewItem = QStyleOptionViewItemV4
+
 elif USE_QT_PY == PYQT4:
 
     import sip
