@@ -813,9 +813,11 @@ class Qutepart(QPlainTextEdit):
         Insert properly indented block
         """
         cursor = self.textCursor()
+        atStartOfLine = cursor.positionInBlock() == 0
         with self:
             cursor.insertBlock()
-            self._indenter.autoIndentBlock(cursor.block())
+            if not atStartOfLine:  # if whole line is moved down - just leave it as is
+                self._indenter.autoIndentBlock(cursor.block())
         self.ensureCursorVisible()
 
     def textBeforeCursor(self):
